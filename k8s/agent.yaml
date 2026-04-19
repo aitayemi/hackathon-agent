@@ -1,0 +1,54 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hackathon-agent
+  namespace: techcompany-sim
+  annotations:
+    # Replace with your IRSA role ARN that has bedrock:InvokeModel permission
+    eks.amazonaws.com/role-arn: <BEDROCK_IRSA_ROLE_ARN>
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hackathon-agent
+  namespace: techcompany-sim
+  labels:
+    app: hackathon-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hackathon-agent
+  template:
+    metadata:
+      labels:
+        app: hackathon-agent
+    spec:
+      serviceAccountName: hackathon-agent
+      containers:
+        - name: agent
+          image: <ECR_REPO>/hackathon-agent:latest
+          env:
+            - name: UC1_BASE_URL
+              value: "http://techcompany-sim-uc1.techcompany-sim:8001"
+            - name: UC2_BASE_URL
+              value: "http://techcompany-sim-uc2.techcompany-sim:8002"
+            - name: POLL_INTERVAL
+              value: "3.0"
+            - name: ANALYSIS_INTERVAL
+              value: "30.0"
+            - name: BEDROCK_REGION
+              value: "us-west-2"
+            - name: BEDROCK_MODEL_ID
+              value: "anthropic.claude-3-5-sonnet-20241022-v2:0"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
