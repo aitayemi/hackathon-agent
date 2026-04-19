@@ -30,7 +30,7 @@ hackathon-agent
 
 1. Build and push the image:
    ```bash
-   docker build -t <ecr-repo>/hackathon-agent:latest agent/
+   docker build -t <ecr-repo>/hackathon-agent:latest .
    docker push <ecr-repo>/hackathon-agent:latest
    ```
 
@@ -39,7 +39,7 @@ hackathon-agent
 
 3. Deploy:
    ```bash
-   kubectl apply -f agent/k8s/agent.yaml
+   kubectl apply -f k8s/agent.yaml
    ```
 
 4. Watch the logs:
