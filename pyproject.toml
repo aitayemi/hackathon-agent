@@ -21,3 +21,6 @@ hackathon-agent = "agent.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+agent = ["static/**/*"]
