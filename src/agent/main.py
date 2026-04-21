@@ -1,5 +1,5 @@
 """
-Entry point — runs the collector and analyzer concurrently.
+Entry point — runs the collector, analyzer, and web dashboard concurrently.
 """
 from __future__ import annotations
 
@@ -7,12 +7,15 @@ import asyncio
 import logging
 import signal
 
+import uvicorn
 from rich.logging import RichHandler
 
 from agent.collector import EventCollector
 from agent.analyzer import Analyzer
+from agent.dashboard import create_app
 from agent.config import (
     UC1_BASE_URL, UC2_BASE_URL, POLL_INTERVAL, ANALYSIS_INTERVAL,
+    DASHBOARD_PORT,
 )
 
 log = logging.getLogger("agent")
@@ -42,15 +45,25 @@ async def run():
     log.info("  UC2 endpoint: %s", UC2_BASE_URL)
     log.info("  Poll interval: %.1fs", POLL_INTERVAL)
     log.info("  Analysis interval: %.0fs", ANALYSIS_INTERVAL)
+    log.info("  Dashboard: http://localhost:%d", DASHBOARD_PORT)
 
     # Handle graceful shutdown
     loop = asyncio.get_event_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, lambda: _shutdown(collector, analyzer))
+    for sig_ in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig_, lambda: _shutdown(collector, analyzer))
+
+    # Start the dashboard web server
+    app = create_app(collector, analyzer)
+    config = uvicorn.Config(
+        app, host="0.0.0.0", port=DASHBOARD_PORT,
+        log_level="warning",  # keep console clean
+    )
+    server = uvicorn.Server(config)
 
     await asyncio.gather(
         collector.run(),
         analyzer.run(),
+        server.serve(),
         _status_printer(collector, analyzer),
     )
 

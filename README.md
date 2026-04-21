@@ -11,6 +11,8 @@ sim-uc1 :8001 ──poll──┐
 sim-uc2 :8002 ──poll──┘         │                  │
                           rolling buffer      JSON verdicts
                           (last 200/source)   every 30s
+                                │
+                          Dashboard :8080  ◀── WebSocket ──▶  Browser
 ```
 
 ## Local Development
@@ -58,3 +60,16 @@ hackathon-agent
 | `BEDROCK_REGION` | `us-west-2` | AWS region for Bedrock |
 | `BEDROCK_MODEL_ID` | `anthropic.claude-3-5-sonnet-20241022-v2:0` | Bedrock model ID |
 | `EVENT_WINDOW_SIZE` | `200` | Max events buffered per source |
+| `DASHBOARD_PORT` | `8080` | Port for the live web dashboard |
+
+## Dashboard
+
+The agent includes a real-time web dashboard at `http://localhost:8080` (or whatever `DASHBOARD_PORT` is set to).
+
+It shows:
+- Live event counts for UC1 (Supply Chain) and UC2 (App Store Compliance)
+- Per-source collection stats with buffer utilization bars
+- Anomaly analysis results with confidence gauges, evidence, and recommended actions
+- A live event feed streaming raw events as they arrive
+
+The dashboard uses WebSockets for real-time updates — no polling, no refresh needed.

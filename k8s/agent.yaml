@@ -52,3 +52,23 @@ spec:
             limits:
               cpu: "500m"
               memory: "256Mi"
+          ports:
+            - containerPort: 8080
+              name: dashboard
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hackathon-agent
+  namespace: techcompany-sim
+  labels:
+    app: hackathon-agent
+spec:
+  selector:
+    app: hackathon-agent
+  ports:
+    - port: 8080
+      targetPort: dashboard
+      protocol: TCP
+      name: http

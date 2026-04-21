@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anomaly Detection Agent — Live Dashboard</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #232733;
+    --border: #2e3345;
+    --text: #e1e4ed;
+    --text-dim: #8b90a0;
+    --accent: #6c63ff;
+    --accent-glow: rgba(108, 99, 255, 0.15);
+    --green: #22c55e;
+    --green-dim: rgba(34, 197, 94, 0.12);
+    --red: #ef4444;
+    --red-dim: rgba(239, 68, 68, 0.12);
+    --orange: #f59e0b;
+    --orange-dim: rgba(245, 158, 11, 0.12);
+    --cyan: #06b6d4;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Header ─────────────────────────────────────────────────── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 28px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+  .logo-icon {
+    width: 32px; height: 32px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+  .conn-badge {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 500;
+    padding: 5px 12px;
+    border-radius: 20px;
+    background: var(--green-dim);
+    color: var(--green);
+  }
+  .conn-badge.disconnected {
+    background: var(--red-dim);
+    color: var(--red);
+  }
+  .conn-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* ── Layout ─────────────────────────────────────────────────── */
+  .container { padding: 24px 28px; max-width: 1440px; margin: 0 auto; }
+
+  /* ── Top stats row ──────────────────────────────────────────── */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .stat-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+  }
+  .stat-value {
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: -1px;
+    line-height: 1;
+  }
+  .stat-sub {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 6px;
+  }
+
+  /* ── Two-column layout ──────────────────────────────────────── */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-bottom: 24px;
+  }
+
+  /* ── Cards ──────────────────────────────────────────────────── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .card-title {
+    font-size: 14px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-body { padding: 20px; }
+
+  /* ── Anomaly status panels ──────────────────────────────────── */
+  .anomaly-panel {
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 16px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    transition: all 0.4s ease;
+  }
+  .anomaly-panel:last-child { margin-bottom: 0; }
+  .anomaly-panel.anomaly {
+    border-color: var(--red);
+    background: var(--red-dim);
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.08);
+  }
+  .anomaly-panel.normal {
+    border-color: var(--green);
+    background: var(--green-dim);
+  }
+  .anomaly-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .anomaly-title {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .status-badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 6px;
+    letter-spacing: 0.3px;
+  }
+  .status-badge.anomaly {
+    background: var(--red);
+    color: white;
+  }
+  .status-badge.normal {
+    background: var(--green);
+    color: white;
+  }
+  .status-badge.waiting {
+    background: var(--surface2);
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+  }
+
+  /* ── Confidence bar ─────────────────────────────────────────── */
+  .confidence-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .confidence-label {
+    font-size: 12px;
+    color: var(--text-dim);
+    min-width: 80px;
+  }
+  .confidence-track {
+    flex: 1;
+    height: 8px;
+    background: var(--bg);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .confidence-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.6s ease, background 0.4s ease;
+  }
+  .confidence-pct {
+    font-size: 13px;
+    font-weight: 700;
+    min-width: 42px;
+    text-align: right;
+  }
+
+  /* ── Evidence list ──────────────────────────────────────────── */
+  .evidence-list {
+    list-style: none;
+    margin-top: 10px;
+  }
+  .evidence-list li {
+    font-size: 12px;
+    color: var(--text-dim);
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    line-height: 1.5;
+  }
+  .evidence-list li:last-child { border-bottom: none; }
+  .evidence-bullet {
+    color: var(--accent);
+    font-size: 10px;
+    margin-top: 3px;
+    flex-shrink: 0;
+  }
+  .action-text {
+    margin-top: 12px;
+    font-size: 12px;
+    padding: 10px 14px;
+    background: var(--bg);
+    border-radius: 8px;
+    border-left: 3px solid var(--accent);
+    color: var(--text);
+    line-height: 1.5;
+  }
+
+  /* ── Source table ────────────────────────────────────────────── */
+  .source-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .source-table th {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .source-table td {
+    font-size: 13px;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+  .source-table tr:last-child td { border-bottom: none; }
+  .source-tag {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.3px;
+  }
+  .source-tag.uc1 { background: rgba(6, 182, 212, 0.15); color: var(--cyan); }
+  .source-tag.uc2 { background: rgba(168, 85, 247, 0.15); color: #a855f7; }
+  .bar-cell { width: 120px; }
+  .mini-bar {
+    height: 6px;
+    background: var(--bg);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .mini-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: var(--accent);
+    transition: width 0.5s ease;
+  }
+
+  /* ── Event feed ─────────────────────────────────────────────── */
+  .event-feed {
+    max-height: 400px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .event-item {
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    font-size: 12px;
+    animation: fadeIn 0.3s ease;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .event-item:last-child { border-bottom: none; }
+  .event-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .event-source {
+    font-weight: 600;
+    color: var(--cyan);
+    font-size: 11px;
+  }
+  .event-time {
+    color: var(--text-dim);
+    font-size: 11px;
+  }
+  .event-data {
+    color: var(--text-dim);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 60px;
+    overflow: hidden;
+  }
+
+  /* ── Analysis counter badge ─────────────────────────────────── */
+  .analysis-count-badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: var(--accent-glow);
+    color: var(--accent);
+  }
+
+  /* ── Responsive ─────────────────────────────────────────────── */
+  @media (max-width: 900px) {
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    .main-grid { grid-template-columns: 1fr; }
+  }
+
+  /* ── Scrollbar ──────────────────────────────────────────────── */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🛡️</div>
+    Anomaly Detection Agent
+  </div>
+  <div class="conn-badge" id="connBadge">
+    <span class="conn-dot"></span>
+    <span id="connText">Connecting…</span>
+  </div>
+</header>
+
+<div class="container">
+  <!-- Top stats -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-label">UC1 — Supply Chain Events</div>
+      <div class="stat-value" id="uc1Total">—</div>
+      <div class="stat-sub"><span id="uc1Buffered">0</span> buffered</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">UC2 — App Store Events</div>
+      <div class="stat-value" id="uc2Total">—</div>
+      <div class="stat-sub"><span id="uc2Buffered">0</span> buffered</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Analysis Cycles</div>
+      <div class="stat-value" id="analysisCycles">0</div>
+      <div class="stat-sub">Bedrock invocations</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Data Sources</div>
+      <div class="stat-value" id="sourceCount">—</div>
+      <div class="stat-sub">Active signal feeds</div>
+    </div>
+  </div>
+
+  <!-- Main two-column -->
+  <div class="main-grid">
+    <!-- Left: Anomaly Analysis -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">🔍 Anomaly Analysis</div>
+        <span class="analysis-count-badge" id="analysisBadge">Cycle #0</span>
+      </div>
+      <div class="card-body" id="analysisBody">
+        <div class="anomaly-panel">
+          <div class="anomaly-header">
+            <span class="anomaly-title">Waiting for first analysis…</span>
+            <span class="status-badge waiting">PENDING</span>
+          </div>
+          <div class="confidence-row">
+            <span class="confidence-label">Confidence</span>
+            <div class="confidence-track"><div class="confidence-fill" style="width:0"></div></div>
+            <span class="confidence-pct">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Source Status -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">📡 Source Status</div>
+      </div>
+      <div class="card-body" style="padding:0">
+        <table class="source-table" id="sourceTable">
+          <thead>
+            <tr>
+              <th>UC</th>
+              <th>Source</th>
+              <th>Collected</th>
+              <th>Buffer</th>
+              <th class="bar-cell">Utilization</th>
+            </tr>
+          </thead>
+          <tbody id="sourceTableBody">
+            <tr><td colspan="5" style="text-align:center;color:var(--text-dim);padding:30px">Waiting for data…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Event Feed -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">⚡ Live Event Feed</div>
+      <span style="font-size:12px;color:var(--text-dim)" id="feedCount">0 events</span>
+    </div>
+    <div class="card-body event-feed" id="eventFeed" style="padding:0">
+      <div style="text-align:center;color:var(--text-dim);padding:30px;font-size:13px">
+        Waiting for events…
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+
+const MAX_FEED_ITEMS = 80;
+let ws;
+let feedItems = [];
+
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws`);
+
+  ws.onopen = () => {
+    document.getElementById('connBadge').className = 'conn-badge';
+    document.getElementById('connText').textContent = 'Live';
+  };
+
+  ws.onclose = () => {
+    document.getElementById('connBadge').className = 'conn-badge disconnected';
+    document.getElementById('connText').textContent = 'Reconnecting…';
+    setTimeout(connect, 3000);
+  };
+
+  ws.onerror = () => ws.close();
+
+  ws.onmessage = (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      render(data);
+    } catch (err) {
+      console.error('Parse error:', err);
+    }
+  };
+}
+
+function fmt(n) {
+  if (n == null) return '—';
+  return n.toLocaleString();
+}
+
+function render(data) {
+  // Stats
+  document.getElementById('uc1Total').textContent = fmt(data.collection?.uc1?.total);
+  document.getElementById('uc1Buffered').textContent = fmt(data.collection?.uc1?.buffered);
+  document.getElementById('uc2Total').textContent = fmt(data.collection?.uc2?.total);
+  document.getElementById('uc2Buffered').textContent = fmt(data.collection?.uc2?.buffered);
+  document.getElementById('analysisCycles').textContent = fmt(data.agent?.analysis_count);
+  document.getElementById('sourceCount').textContent = fmt(data.agent?.uptime_sources);
+  document.getElementById('analysisBadge').textContent = `Cycle #${data.agent?.analysis_count || 0}`;
+
+  // Sources table
+  if (data.sources && data.sources.length > 0) {
+    renderSources(data.sources);
+  }
+
+  // Analysis
+  if (data.analysis) {
+    renderAnalysis(data.analysis);
+  }
+
+  // Event feed — collect new events from sources
+  if (data.sources) {
+    collectFeedEvents(data.sources);
+  }
+}
+
+function renderSources(sources) {
+  const tbody = document.getElementById('sourceTableBody');
+  const maxBuffer = 200; // EVENT_WINDOW_SIZE
+  let html = '';
+  for (const s of sources) {
+    const pct = Math.min(100, (s.buffered / maxBuffer) * 100);
+    const ucClass = s.use_case === 'UC1' ? 'uc1' : 'uc2';
+    html += `<tr>
+      <td><span class="source-tag ${ucClass}">${s.use_case}</span></td>
+      <td>${s.name}</td>
+      <td>${fmt(s.total_collected)}</td>
+      <td>${s.buffered}</td>
+      <td class="bar-cell">
+        <div class="mini-bar"><div class="mini-bar-fill" style="width:${pct}%"></div></div>
+      </td>
+    </tr>`;
+  }
+  tbody.innerHTML = html;
+}
+
+function renderAnalysis(analysis) {
+  const body = document.getElementById('analysisBody');
+  let html = '';
+
+  const panels = [
+    { key: 'uc1', label: 'UC1 — Supply Chain', icon: '📦' },
+    { key: 'uc2', label: 'UC2 — App Store Compliance', icon: '📱' },
+  ];
+
+  for (const p of panels) {
+    const uc = analysis[p.key];
+    if (!uc) continue;
+
+    const isAnomaly = uc.status === 'ANOMALY_DETECTED';
+    const panelClass = isAnomaly ? 'anomaly' : 'normal';
+    const statusText = isAnomaly ? 'ANOMALY' : 'NORMAL';
+    const conf = Math.round((uc.confidence || 0) * 100);
+    const barColor = isAnomaly ? 'var(--red)' : 'var(--green)';
+
+    let evidenceHtml = '';
+    if (uc.evidence && uc.evidence.length > 0) {
+      evidenceHtml = '<ul class="evidence-list">';
+      for (const e of uc.evidence.slice(0, 5)) {
+        evidenceHtml += `<li><span class="evidence-bullet">▸</span>${escHtml(e)}</li>`;
+      }
+      evidenceHtml += '</ul>';
+    }
+
+    let actionHtml = '';
+    if (uc.action) {
+      actionHtml = `<div class="action-text"><strong>Recommended:</strong> ${escHtml(uc.action)}</div>`;
+    }
+
+    html += `
+      <div class="anomaly-panel ${panelClass}">
+        <div class="anomaly-header">
+          <span class="anomaly-title">${p.icon} ${p.label}</span>
+          <span class="status-badge ${panelClass}">${statusText}</span>
+        </div>
+        <div class="confidence-row">
+          <span class="confidence-label">Confidence</span>
+          <div class="confidence-track">
+            <div class="confidence-fill" style="width:${conf}%;background:${barColor}"></div>
+          </div>
+          <span class="confidence-pct">${conf}%</span>
+        </div>
+        ${evidenceHtml}
+        ${actionHtml}
+      </div>`;
+  }
+
+  body.innerHTML = html || body.innerHTML;
+}
+
+// Track seen events to avoid duplicates in the feed
+const seenEvents = new Set();
+
+function collectFeedEvents(sources) {
+  const feed = document.getElementById('eventFeed');
+  let newItems = [];
+
+  for (const s of sources) {
+    if (!s.recent_events) continue;
+    for (const evt of s.recent_events) {
+      const key = `${s.use_case}/${s.name}/${evt.timestamp}/${JSON.stringify(evt.data).slice(0, 60)}`;
+      if (seenEvents.has(key)) continue;
+      seenEvents.add(key);
+      newItems.push({
+        source: `${s.use_case}/${s.name}`,
+        use_case: s.use_case,
+        timestamp: evt.timestamp,
+        data: evt.data,
+      });
+    }
+  }
+
+  if (newItems.length === 0) return;
+
+  // Sort newest first
+  newItems.sort((a, b) => b.timestamp - a.timestamp);
+  feedItems = [...newItems, ...feedItems].slice(0, MAX_FEED_ITEMS);
+
+  // Keep seenEvents from growing unbounded
+  if (seenEvents.size > 2000) {
+    seenEvents.clear();
+  }
+
+  let html = '';
+  for (const item of feedItems) {
+    const ts = item.timestamp ? new Date(item.timestamp * 1000).toLocaleTimeString() : '';
+    const dataStr = JSON.stringify(item.data, null, 1);
+    const truncated = dataStr.length > 200 ? dataStr.slice(0, 200) + '…' : dataStr;
+    html += `<div class="event-item">
+      <div class="event-meta">
+        <span class="event-source">${escHtml(item.source)}</span>
+        <span class="event-time">${ts}</span>
+      </div>
+      <div class="event-data">${escHtml(truncated)}</div>
+    </div>`;
+  }
+
+  feed.innerHTML = html;
+  document.getElementById('feedCount').textContent = `${feedItems.length} events`;
+}
+
+function escHtml(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = String(s);
+  return d.innerHTML;
+}
+
+connect();
+</script>
+</body>
+</html>

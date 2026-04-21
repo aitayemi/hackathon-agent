@@ -28,3 +28,7 @@ EVENT_WINDOW_SIZE = int(os.getenv("EVENT_WINDOW_SIZE", "200"))
 BEDROCK_REGION = os.getenv("BEDROCK_REGION", "us-west-2")
 BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-5-sonnet-20241022-v2:0")
 ANALYSIS_INTERVAL = float(os.getenv("ANALYSIS_INTERVAL", "30.0"))
+
+# ── Dashboard ────────────────────────────────────────────────────────────────
+
+DASHBOARD_PORT = int(os.getenv("DASHBOARD_PORT", "8080"))
