@@ -6,7 +6,7 @@ metadata:
   namespace: techcompany-sim
   annotations:
     # Replace with your IRSA role ARN that has bedrock:InvokeModel permission
-    eks.amazonaws.com/role-arn: <BEDROCK_IRSA_ROLE_ARN>
+    eks.amazonaws.com/role-arn: arn:aws:iam::440310653679:role/eksctl-mlops-18040-addon-iamserviceaccount-te-Role1-hHFsQOkaY6cI
 
 ---
 apiVersion: apps/v1
@@ -26,10 +26,10 @@ spec:
       labels:
         app: hackathon-agent
     spec:
-      serviceAccountName: hackathon-agent
+      serviceAccountName: bedrock-service-account
       containers:
         - name: agent
-          image: <ECR_REPO>/hackathon-agent:latest
+          image: 440310653679.dkr.ecr.us-east-1.amazonaws.com/aitayemi-ecr:hackathon-agent-latest
           env:
             - name: UC1_BASE_URL
               value: "http://techcompany-sim-uc1.techcompany-sim:8001"
@@ -42,7 +42,7 @@ spec:
             - name: BEDROCK_REGION
               value: "us-west-2"
             - name: BEDROCK_MODEL_ID
-              value: "anthropic.claude-3-5-haiku-20241022-v1:0"
+              value: "us.anthropic.claude-3-5-haiku-20241022-v1:0"
             - name: PYTHONUNBUFFERED
               value: "1"
           resources:

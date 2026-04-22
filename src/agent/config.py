@@ -26,7 +26,7 @@ EVENT_WINDOW_SIZE = int(os.getenv("EVENT_WINDOW_SIZE", "200"))
 # ── Bedrock ──────────────────────────────────────────────────────────────────
 
 BEDROCK_REGION = os.getenv("BEDROCK_REGION", "us-west-2")
-BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-5-haiku-20241022-v1:0")
+BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-3-5-haiku-20241022-v1:0")
 ANALYSIS_INTERVAL = float(os.getenv("ANALYSIS_INTERVAL", "30.0"))
 
 # ── Dashboard ────────────────────────────────────────────────────────────────
