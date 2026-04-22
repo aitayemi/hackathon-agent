@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: hackathon-agent
+  name: bedrock-service-account
   namespace: techcompany-sim
   annotations:
     # Replace with your IRSA role ARN that has bedrock:InvokeModel permission
