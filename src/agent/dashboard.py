@@ -58,6 +58,20 @@ def create_app(collector: EventCollector, analyzer: Analyzer) -> FastAPI:
     async def status():
         return _build_snapshot(collector, analyzer)
 
+    # ── Debug: see raw events ───────────────────────────────────────────
+    @app.get("/api/debug/events", summary="See raw buffered events for debugging")
+    async def debug_events():
+        out = {}
+        for src in collector.sources:
+            key = f"{src.use_case}/{src.name}"
+            events = list(src.events)[-5:]  # last 5 per source
+            out[key] = {
+                "total_collected": src.total_collected,
+                "buffered": len(src.events),
+                "sample_events": events,
+            }
+        return out
+
     # ── Inject events ────────────────────────────────────────────────────
     def _find_source(key: str):
         """Resolve 'UC1/supplier-capacity' to the matching SourceState."""

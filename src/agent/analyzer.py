@@ -86,7 +86,8 @@ class Analyzer:
             high_priority = []
             normal = []
             for evt in recent:
-                data = evt.get("data", {})
+                # Handle both {data: {...}} and flat event structures
+                data = evt.get("data", evt)
                 severity = str(data.get("severity", "")).upper()
                 if severity in ("CRITICAL", "HIGH") or data.get("risk_score", 0) > 0.7:
                     high_priority.append(evt)
@@ -97,8 +98,8 @@ class Analyzer:
             to_send = high_priority + normal[-max(0, 20 - len(high_priority)):]
 
             for evt in to_send:
-                data = evt.get("data", {})
-                sections.append(f"  {json.dumps(data, default=str)}")
+                # Send the full event — don't assume a "data" wrapper exists
+                sections.append(f"  {json.dumps(evt, default=str)}")
 
         return "\n".join(sections)
 
