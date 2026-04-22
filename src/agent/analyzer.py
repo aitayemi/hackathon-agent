@@ -81,7 +81,7 @@ class Analyzer:
         try:
             body = json.dumps({
                 "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": 1024,
+                "max_tokens": 4096,
                 "system": SYSTEM_PROMPT,
                 "messages": [
                     {
@@ -89,7 +89,8 @@ class Analyzer:
                         "content": (
                             f"Analyze these recent events (collected at "
                             f"{datetime.now(timezone.utc).isoformat()}):\n\n"
-                            f"{event_summary}"
+                            f"{event_summary}\n\n"
+                            f"Respond ONLY with the JSON object, no other text."
                         ),
                     }
                 ],
@@ -104,14 +105,32 @@ class Analyzer:
 
             result = json.loads(response["body"].read())
             text = result["content"][0]["text"]
+            log.debug("Raw Bedrock response (first 500 chars): %s", text[:500])
 
-            # Extract JSON from the response (handle markdown code blocks)
+            # Extract JSON from the response — try multiple strategies
+            # 1. Strip markdown code fences
             if "```json" in text:
-                text = text.split("```json")[1].split("```")[0]
+                text = text.split("```json", 1)[1].rsplit("```", 1)[0]
             elif "```" in text:
-                text = text.split("```")[1].split("```")[0]
+                text = text.split("```", 1)[1].rsplit("```", 1)[0]
 
-            return json.loads(text)
+            # 2. Try parsing as-is
+            try:
+                return json.loads(text.strip())
+            except json.JSONDecodeError:
+                pass
+
+            # 3. Find the first { ... last } and try that
+            start = text.find("{")
+            end = text.rfind("}")
+            if start != -1 and end != -1 and end > start:
+                try:
+                    return json.loads(text[start:end + 1])
+                except json.JSONDecodeError:
+                    pass
+
+            log.error("Could not parse JSON from Bedrock response: %s", text[:1000])
+            raise ValueError(f"Bedrock returned unparseable response: {text[:300]}")
 
         except Exception as e:
             log.error("Bedrock invocation failed: %s: %s", type(e).__name__, e)
