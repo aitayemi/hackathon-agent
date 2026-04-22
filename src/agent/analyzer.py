@@ -71,40 +71,44 @@ Respond ONLY with JSON in this exact structure, no other text:
 
 def _is_high_priority(evt: dict) -> bool:
     """Check if an event has anomaly-relevant signals based on actual simulator fields."""
+    # Handle both flat events (simulator) and wrapped events (inject API)
+    data = evt.get("data", evt)
+
     # UC1 supplier-capacity: low capacity
-    cap = evt.get("capacity_pct")
+    cap = data.get("capacity_pct")
     if cap is not None and cap < 50:
         return True
 
     # UC1 inventory: low days of supply or explicit alert
-    dos = evt.get("days_of_supply")
+    dos = data.get("days_of_supply")
     if dos is not None and dos < 5:
         return True
-    if evt.get("alert") and "CRITICAL" in str(evt.get("alert", "")):
+    alert = str(data.get("alert") or "")
+    if "CRITICAL" in alert:
         return True
 
     # UC1 logistics: significant delays
-    delay = evt.get("delay_hours")
+    delay = data.get("delay_hours")
     if delay is not None and delay > 48:
         return True
 
     # UC1 geopolitical: high severity
-    sev = str(evt.get("severity", "")).lower()
+    sev = str(data.get("severity", "")).lower()
     if sev in ("critical", "high"):
         return True
 
     # UC2 escalation-queue: any escalation for the tracked app
-    if evt.get("escalation_reason"):
+    if data.get("escalation_reason"):
         return True
 
     # UC2 submission-history: rejections
-    if evt.get("outcome") == "rejected":
+    if data.get("outcome") == "rejected":
         return True
 
     # UC2: the specific tracked app
-    if evt.get("bundle_id") == "com.obscure.tracker":
+    if data.get("bundle_id") == "com.obscure.tracker":
         return True
-    if evt.get("triggered_by") == "com.obscure.tracker":
+    if data.get("triggered_by") == "com.obscure.tracker":
         return True
 
     return False
@@ -146,7 +150,9 @@ class Analyzer:
             if high:
                 sections.append(f"  ⚠ {len(high)} HIGH-PRIORITY events detected:")
             for evt in to_send:
-                sections.append(f"  {json.dumps(evt, default=str)}")
+                # Normalize: send the data payload, not the wrapper
+                data = evt.get("data", evt)
+                sections.append(f"  {json.dumps(data, default=str)}")
 
         return "\n".join(sections)
 

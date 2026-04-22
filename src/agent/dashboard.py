@@ -89,10 +89,9 @@ def create_app(collector: EventCollector, analyzer: Analyzer) -> FastAPI:
             if not src:
                 errors.append(f"Unknown source: {item.source}")
                 continue
-            evt = {
-                "timestamp": item.timestamp or time.time(),
-                "data": item.data,
-            }
+            # Store as flat event — same structure as simulator events
+            # so the analyzer handles injected and polled events identically
+            evt = {**item.data, "timestamp": item.timestamp or time.time()}
             src.events.append(evt)
             src.total_collected += 1
             injected += 1
@@ -176,9 +175,12 @@ def _build_snapshot(collector: EventCollector, analyzer: Analyzer) -> dict:
     for src in collector.sources:
         recent_events = []
         for evt in list(src.events)[-20:]:  # last 20 per source
+            # Handle both flat events (from simulator) and wrapped events
+            ts = evt.get("timestamp", 0)
+            data = evt.get("data", evt)  # flat event IS the data
             recent_events.append({
-                "timestamp": evt.get("timestamp", 0),
-                "data": evt.get("data", {}),
+                "timestamp": ts,
+                "data": data,
             })
 
         sources.append({
