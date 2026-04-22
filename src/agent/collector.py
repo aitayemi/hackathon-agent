@@ -53,12 +53,42 @@ class EventCollector:
             payload = resp.json()
             new_events = payload.get("events", [])
 
+            if not new_events:
+                return []
+
             for evt in new_events:
                 src.events.append(evt)
-                ts = evt.get("timestamp", 0.0)
+                # Try multiple timestamp fields the simulator might use
+                ts = (
+                    evt.get("timestamp")
+                    or evt.get("ts")
+                    or evt.get("event_time")
+                    or evt.get("time")
+                    or 0.0
+                )
                 if ts > src.last_ts:
                     src.last_ts = ts
+
+            # If no event-level timestamp found, use the response-level one
+            # or fall back to current time to advance the cursor
+            if src.last_ts == 0.0 or all(
+                not evt.get("timestamp") and not evt.get("ts")
+                for evt in new_events
+            ):
+                response_ts = payload.get("timestamp") or payload.get("ts") or 0.0
+                if response_ts > src.last_ts:
+                    src.last_ts = response_ts
+                elif new_events:
+                    # Last resort: use current time so we don't re-fetch
+                    import time
+                    src.last_ts = time.time()
+
             src.total_collected += len(new_events)
+            if new_events:
+                log.debug(
+                    "%s/%s: %d new events (last_ts=%.3f)",
+                    src.use_case, src.name, len(new_events), src.last_ts,
+                )
             return new_events
 
         except httpx.HTTPError as e:
