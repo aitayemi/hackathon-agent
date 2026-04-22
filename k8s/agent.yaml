@@ -42,7 +42,7 @@ spec:
             - name: BEDROCK_REGION
               value: "us-west-2"
             - name: BEDROCK_MODEL_ID
-              value: "anthropic.claude-3-5-sonnet-20241022-v2:0"
+              value: "anthropic.claude-3-5-haiku-20241022-v1:0"
             - name: PYTHONUNBUFFERED
               value: "1"
           resources:

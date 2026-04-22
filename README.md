@@ -58,7 +58,7 @@ hackathon-agent
 | `POLL_INTERVAL` | `3.0` | Seconds between poll cycles |
 | `ANALYSIS_INTERVAL` | `30.0` | Seconds between Bedrock analysis runs |
 | `BEDROCK_REGION` | `us-west-2` | AWS region for Bedrock |
-| `BEDROCK_MODEL_ID` | `anthropic.claude-3-5-sonnet-20241022-v2:0` | Bedrock model ID |
+| `BEDROCK_MODEL_ID` | `anthropic.claude-3-5-haiku-20241022-v1:0` | Bedrock model ID |
 | `EVENT_WINDOW_SIZE` | `200` | Max events buffered per source |
 | `DASHBOARD_PORT` | `8080` | Port for the live web dashboard |
 
