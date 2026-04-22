@@ -72,6 +72,14 @@ def create_app(collector: EventCollector, analyzer: Analyzer) -> FastAPI:
             }
         return out
 
+    # ── Analysis history ─────────────────────────────────────────────────
+    @app.get("/api/history", summary="Get analysis result history")
+    async def analysis_history():
+        return {
+            "count": len(analyzer.result_history),
+            "results": list(analyzer.result_history),
+        }
+
     # ── Inject events ────────────────────────────────────────────────────
     def _find_source(key: str):
         """Resolve 'UC1/supplier-capacity' to the matching SourceState."""
@@ -116,10 +124,11 @@ def create_app(collector: EventCollector, analyzer: Analyzer) -> FastAPI:
 
         log.info("API-triggered analysis cycle (%d buffered events)", total_events)
         summary = analyzer._build_event_summary()
+        prompt = analyzer._build_prompt(summary)
         loop = asyncio.get_event_loop()
 
         try:
-            result = await loop.run_in_executor(None, analyzer._invoke_bedrock, summary)
+            result = await loop.run_in_executor(None, analyzer._invoke_bedrock, prompt)
         except Exception as e:
             raise HTTPException(
                 status_code=502,
@@ -128,6 +137,7 @@ def create_app(collector: EventCollector, analyzer: Analyzer) -> FastAPI:
 
         if result:
             analyzer.last_result = result
+            analyzer.result_history.append(result)
             analyzer.analysis_count += 1
             analyzer._log_result(result)
             return {"cycle": analyzer.analysis_count, "result": result}
@@ -214,4 +224,5 @@ def _build_snapshot(collector: EventCollector, analyzer: Analyzer) -> dict:
         },
         "sources": sources,
         "analysis": analysis,
+        "history_count": len(analyzer.result_history),
     }

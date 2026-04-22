@@ -6,7 +6,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import time
+from collections import deque
 from datetime import datetime, timezone
 
 import boto3
@@ -57,8 +57,14 @@ The progressive obfuscation pattern: A developer repeatedly submitting an app th
 triggers privacy policy lookups, has past rejections for data collection violations, \
 and gets escalated for "prior violation pattern" is the key anomaly.
 
-CRITICAL INSTRUCTION: If you see events matching these patterns, you MUST report \
-ANOMALY_DETECTED. Do NOT report NORMAL if there are clear anomaly signals present.
+IMPORTANT RULES:
+1. If you see events matching these patterns, you MUST report ANOMALY_DETECTED.
+2. If the previous analysis already detected an anomaly and the underlying conditions \
+   have NOT improved (capacity still low, delays still high, inventory still critical, \
+   app still being flagged), you MUST continue reporting ANOMALY_DETECTED. Anomalies \
+   do not resolve until the metrics return to normal ranges.
+3. Your confidence should INCREASE over time if the anomaly persists or worsens.
+4. Include specific numbers from the events in your evidence (e.g., "capacity_pct: 29%").
 
 Respond ONLY with JSON in this exact structure, no other text:
 {
@@ -71,15 +77,12 @@ Respond ONLY with JSON in this exact structure, no other text:
 
 def _is_high_priority(evt: dict) -> bool:
     """Check if an event has anomaly-relevant signals based on actual simulator fields."""
-    # Handle both flat events (simulator) and wrapped events (inject API)
     data = evt.get("data", evt)
 
-    # UC1 supplier-capacity: low capacity
     cap = data.get("capacity_pct")
     if cap is not None and cap < 50:
         return True
 
-    # UC1 inventory: low days of supply or explicit alert
     dos = data.get("days_of_supply")
     if dos is not None and dos < 5:
         return True
@@ -87,25 +90,18 @@ def _is_high_priority(evt: dict) -> bool:
     if "CRITICAL" in alert:
         return True
 
-    # UC1 logistics: significant delays
     delay = data.get("delay_hours")
     if delay is not None and delay > 48:
         return True
 
-    # UC1 geopolitical: high severity
     sev = str(data.get("severity", "")).lower()
     if sev in ("critical", "high"):
         return True
 
-    # UC2 escalation-queue: any escalation for the tracked app
     if data.get("escalation_reason"):
         return True
-
-    # UC2 submission-history: rejections
     if data.get("outcome") == "rejected":
         return True
-
-    # UC2: the specific tracked app
     if data.get("bundle_id") == "com.obscure.tracker":
         return True
     if data.get("triggered_by") == "com.obscure.tracker":
@@ -117,11 +113,14 @@ def _is_high_priority(evt: dict) -> bool:
 class Analyzer:
     """Periodically analyzes buffered events via Bedrock."""
 
+    MAX_HISTORY = 50
+
     def __init__(self, collector: EventCollector):
         self.collector = collector
         self._client = boto3.client("bedrock-runtime", region_name=BEDROCK_REGION)
         self._running = False
         self.last_result: dict | None = None
+        self.result_history: deque[dict] = deque(maxlen=self.MAX_HISTORY)
         self.analysis_count = 0
         self._consecutive_failures = 0
 
@@ -139,39 +138,49 @@ class Analyzer:
                 f"({len(recent)} recent events, {src.total_collected} total collected)"
             )
 
-            # Separate high-priority from normal events
             high = [e for e in recent if _is_high_priority(e)]
             normal = [e for e in recent if not _is_high_priority(e)]
 
-            # Always include ALL high-priority events, pad with recent normal
             remaining_slots = max(0, 25 - len(high))
             to_send = high + normal[-remaining_slots:] if remaining_slots else high
 
             if high:
                 sections.append(f"  ⚠ {len(high)} HIGH-PRIORITY events detected:")
             for evt in to_send:
-                # Normalize: send the data payload, not the wrapper
                 data = evt.get("data", evt)
                 sections.append(f"  {json.dumps(data, default=str)}")
 
         return "\n".join(sections)
 
-    def _invoke_bedrock(self, event_summary: str) -> dict | None:
-        """Call Bedrock with the event summary and return parsed JSON."""
+    def _build_prompt(self, event_summary: str) -> str:
+        """Build the full user prompt including previous analysis context."""
+        now = datetime.now(timezone.utc).isoformat()
+        parts = [f"Analyze these recent events (collected at {now}):\n\n{event_summary}"]
+
+        # Include previous result so the LLM maintains continuity
+        if self.last_result:
+            parts.append(
+                f"\n\n--- PREVIOUS ANALYSIS (cycle #{self.analysis_count}) ---\n"
+                f"{json.dumps(self.last_result, default=str)}\n"
+                f"--- END PREVIOUS ANALYSIS ---\n\n"
+                f"If the anomaly conditions from the previous analysis are still present "
+                f"in the current events, you MUST continue reporting ANOMALY_DETECTED "
+                f"with equal or higher confidence. Only report NORMAL if the metrics "
+                f"have genuinely returned to safe ranges (capacity > 70%, days_of_supply > 10, "
+                f"delay_hours < 24, no more escalations for the flagged app)."
+            )
+
+        return "\n".join(parts)
+
+    def _invoke_bedrock(self, prompt: str) -> dict | None:
+        """Call Bedrock with the prompt and return parsed JSON."""
         try:
             body = json.dumps({
                 "anthropic_version": "bedrock-2023-05-31",
                 "max_tokens": 4096,
                 "system": SYSTEM_PROMPT,
                 "messages": [
-                    {
-                        "role": "user",
-                        "content": (
-                            f"Analyze these recent events (collected at "
-                            f"{datetime.now(timezone.utc).isoformat()}):\n\n"
-                            f"{event_summary}"
-                        ),
-                    }
+                    {"role": "user", "content": prompt},
                 ],
             })
 
@@ -186,7 +195,6 @@ class Analyzer:
             text = result["content"][0]["text"]
             log.debug("Raw Bedrock response (first 500 chars): %s", text[:500])
 
-            # Extract JSON — try multiple strategies
             if "```json" in text:
                 text = text.split("```json", 1)[1].rsplit("```", 1)[0]
             elif "```" in text:
@@ -228,7 +236,6 @@ class Analyzer:
                 await asyncio.sleep(ANALYSIS_INTERVAL)
                 continue
 
-            # Count high-priority events across all sources
             hp_count = sum(
                 1 for s in self.collector.sources
                 for e in list(s.events)[-50:]
@@ -240,10 +247,11 @@ class Analyzer:
                 self.analysis_count + 1, total_events, hp_count,
             )
 
-            summary = self._build_event_summary()
+            event_summary = self._build_event_summary()
+            prompt = self._build_prompt(event_summary)
             loop = asyncio.get_event_loop()
             try:
-                result = await loop.run_in_executor(None, self._invoke_bedrock, summary)
+                result = await loop.run_in_executor(None, self._invoke_bedrock, prompt)
             except Exception as e:
                 self._consecutive_failures += 1
                 log.warning(
@@ -260,7 +268,13 @@ class Analyzer:
 
             if result:
                 self._consecutive_failures = 0
+                # Add cycle metadata
+                result["cycle"] = self.analysis_count + 1
+                result["high_priority_count"] = hp_count
+                result["total_events"] = total_events
+
                 self.last_result = result
+                self.result_history.append(result)
                 self.analysis_count += 1
                 self._log_result(result)
             else:
