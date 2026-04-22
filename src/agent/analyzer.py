@@ -114,8 +114,8 @@ class Analyzer:
             return json.loads(text)
 
         except Exception as e:
-            log.error("Bedrock invocation failed: %s", e)
-            return None
+            log.error("Bedrock invocation failed: %s: %s", type(e).__name__, e)
+            raise
 
     async def run(self):
         """Periodic analysis loop."""
@@ -140,7 +140,12 @@ class Analyzer:
             summary = self._build_event_summary()
             # Run the synchronous Bedrock call in a thread to avoid blocking
             loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(None, self._invoke_bedrock, summary)
+            try:
+                result = await loop.run_in_executor(None, self._invoke_bedrock, summary)
+            except Exception as e:
+                log.warning("Analysis cycle %d failed: %s: %s",
+                            self.analysis_count + 1, type(e).__name__, e)
+                result = None
 
             if result:
                 self.last_result = result

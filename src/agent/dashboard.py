@@ -104,7 +104,14 @@ def create_app(collector: EventCollector, analyzer: Analyzer) -> FastAPI:
         log.info("API-triggered analysis cycle (%d buffered events)", total_events)
         summary = analyzer._build_event_summary()
         loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(None, analyzer._invoke_bedrock, summary)
+
+        try:
+            result = await loop.run_in_executor(None, analyzer._invoke_bedrock, summary)
+        except Exception as e:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Bedrock invocation exception: {type(e).__name__}: {e}",
+            )
 
         if result:
             analyzer.last_result = result
@@ -114,7 +121,7 @@ def create_app(collector: EventCollector, analyzer: Analyzer) -> FastAPI:
         else:
             raise HTTPException(
                 status_code=502,
-                detail="Bedrock invocation failed — check agent logs",
+                detail=f"Bedrock invocation returned no result — check agent logs for details",
             )
 
     # ── WebSocket for live updates ───────────────────────────────────────
