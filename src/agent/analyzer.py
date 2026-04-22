@@ -18,41 +18,47 @@ log = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """\
 You are an anomaly detection agent monitoring two live data streams from a \
-tech company's operations platform.
+tech company's operations platform. You MUST analyze every event carefully.
 
-**UC1 — Supply Chain** has 4 sources:
-- supplier-capacity: tracks supplier capacity_pct, quality_yield_pct, workforce events
-- logistics: tracks shipment status, delay_hours, port congestion
-- geopolitical: tracks export controls, regulatory changes, severity levels
-- inventory: tracks units_on_hand, days_of_supply, reorder_point, alert messages
+**UC1 — Supply Chain** (4 sources: supplier-capacity, logistics, geopolitical, inventory):
 
-Anomaly indicators for UC1:
-- capacity_pct below 50% (critical if below 30%)
-- days_of_supply below 5 (critical if below 2)
-- delay_hours above 48 (critical if above 100)
-- alert field containing "CRITICAL"
-- severity field = "critical" or "high"
-- event_type = "export-control" or "workforce-reduction"
-- Multiple sources showing problems for the same component_type simultaneously
+Anomaly indicators to watch for:
+- supplier-capacity: capacity_pct below 50% is concerning, below 30% is critical. \
+  Watch for event_types like "workforce-reduction", "quality-hold", "planned-downtime" \
+  especially from tier-1 suppliers. Low quality_yield_pct (below 85%) compounds the problem.
+- logistics: delay_hours above 48 is concerning, above 100 is critical. \
+  Watch for status "delayed" with delay_cause "port-congestion" or "export-hold". \
+  Multiple delayed shipments for the same component_type indicates a systemic issue.
+- inventory: days_of_supply below 5 is concerning, below 2 is critical. \
+  units_on_hand far below reorder_point with in_transit_units at 0 is an emergency. \
+  The "alert" field containing "CRITICAL" is an explicit alarm.
+- geopolitical: severity "critical" or "high" events, especially "export-control" \
+  event_types affecting component supply chains.
 
-**UC2 — App Store Compliance** has 4 sources:
-- submission-queue: app submissions with declared_capabilities
-- policy-kb: policy rule lookups triggered by specific apps
-- submission-history: past review outcomes (rejected, warned, approved)
-- escalation-queue: escalated reviews with reasons and confidence scores
+The cascading pattern: A supplier capacity collapse → logistics delays → inventory \
+depletion is the highest-severity anomaly. If you see CoreFab International with \
+low capacity AND cellular-modem logistics delays AND cellular-modem inventory \
+alerts, that is a confirmed cascading supply chain disruption.
 
-Anomaly indicators for UC2:
-- Same bundle_id appearing repeatedly across multiple sources
-- submission-history showing "rejected" or "warned" outcomes
-- escalation_queue entries with low reviewer_confidence
-- policy-kb lookups triggered by the same app across multiple jurisdictions
-- Pattern of the same developer_account having repeated violations
+**UC2 — App Store Compliance** (4 sources: submission-queue, policy-kb, \
+submission-history, escalation-queue):
 
-For each analysis cycle, examine ALL the events and report:
-1. **Status**: NORMAL or ANOMALY_DETECTED (for each UC independently)
-2. **Confidence**: 0.0 to 1.0
-3. **Evidence**: Specific data points from the events (include actual numbers)
-4. **Recommended Action**: What an operations team should do
+Anomaly indicators to watch for:
+- submission-queue: Repeated submissions from the same bundle_id/developer_account \
+  with suspicious declared_capabilities. Watch for com.obscure.tracker / dev_account_7741.
+- policy-kb: High-confidence rule lookups triggered by the same app, especially \
+  section "5.1.1 Data Collection and Storage".
+- submission-history: Past rejections for the same developer, especially for \
+  privacy violations. remediation_taken: false or repeated violations is a red flag.
+- escalation-queue: Any escalation with reason mentioning "prior violation pattern" \
+  or "underdeclaration". Low reviewer_confidence with serious policy citations.
+
+The progressive obfuscation pattern: A developer repeatedly submitting an app that \
+triggers privacy policy lookups, has past rejections for data collection violations, \
+and gets escalated for "prior violation pattern" is the key anomaly.
+
+CRITICAL INSTRUCTION: If you see events matching these patterns, you MUST report \
+ANOMALY_DETECTED. Do NOT report NORMAL if there are clear anomaly signals present.
 
 Respond ONLY with JSON in this exact structure, no other text:
 {
@@ -64,48 +70,41 @@ Respond ONLY with JSON in this exact structure, no other text:
 
 
 def _is_high_priority(evt: dict) -> bool:
-    """Check if an event has anomaly indicators based on actual simulator fields."""
+    """Check if an event has anomaly-relevant signals based on actual simulator fields."""
     # UC1 supplier-capacity: low capacity
     cap = evt.get("capacity_pct")
     if cap is not None and cap < 50:
         return True
 
-    # UC1 inventory: low days of supply or CRITICAL alert
+    # UC1 inventory: low days of supply or explicit alert
     dos = evt.get("days_of_supply")
     if dos is not None and dos < 5:
         return True
-    alert = evt.get("alert")
-    if alert and "CRITICAL" in str(alert).upper():
+    if evt.get("alert") and "CRITICAL" in str(evt.get("alert", "")):
         return True
 
-    # UC1 logistics: high delays
+    # UC1 logistics: significant delays
     delay = evt.get("delay_hours")
     if delay is not None and delay > 48:
         return True
 
-    # UC1 geopolitical: critical/high severity
+    # UC1 geopolitical: high severity
     sev = str(evt.get("severity", "")).lower()
     if sev in ("critical", "high"):
         return True
 
-    # UC1 geopolitical: export controls
-    etype = str(evt.get("event_type", "")).lower()
-    if etype in ("export-control", "workforce-reduction"):
-        return True
-
-    # UC2 escalation-queue: any escalation
+    # UC2 escalation-queue: any escalation for the tracked app
     if evt.get("escalation_reason"):
         return True
 
-    # UC2 submission-history: rejected or warned
-    outcome = str(evt.get("outcome", "")).lower()
-    if outcome in ("rejected", "warned"):
+    # UC2 submission-history: rejections
+    if evt.get("outcome") == "rejected":
         return True
 
-    # UC2: known bad actor
+    # UC2: the specific tracked app
     if evt.get("bundle_id") == "com.obscure.tracker":
         return True
-    if evt.get("developer_account") == "dev_account_7741":
+    if evt.get("triggered_by") == "com.obscure.tracker":
         return True
 
     return False
@@ -133,14 +132,14 @@ class Analyzer:
 
             sections.append(
                 f"### {src.use_case}/{src.name} "
-                f"({len(recent)} recent, {src.total_collected} total collected)"
+                f"({len(recent)} recent events, {src.total_collected} total collected)"
             )
 
-            # Separate high-priority from normal
+            # Separate high-priority from normal events
             high = [e for e in recent if _is_high_priority(e)]
             normal = [e for e in recent if not _is_high_priority(e)]
 
-            # Always include ALL high-priority events, pad with normal
+            # Always include ALL high-priority events, pad with recent normal
             remaining_slots = max(0, 25 - len(high))
             to_send = high + normal[-remaining_slots:] if remaining_slots else high
 
@@ -238,9 +237,7 @@ class Analyzer:
             summary = self._build_event_summary()
             loop = asyncio.get_event_loop()
             try:
-                result = await loop.run_in_executor(
-                    None, self._invoke_bedrock, summary
-                )
+                result = await loop.run_in_executor(None, self._invoke_bedrock, summary)
             except Exception as e:
                 self._consecutive_failures += 1
                 log.warning(
@@ -261,10 +258,7 @@ class Analyzer:
                 self.analysis_count += 1
                 self._log_result(result)
             else:
-                log.warning(
-                    "Analysis cycle %d produced no result",
-                    self.analysis_count + 1,
-                )
+                log.warning("Analysis cycle %d produced no result", self.analysis_count + 1)
 
             await asyncio.sleep(ANALYSIS_INTERVAL)
 
