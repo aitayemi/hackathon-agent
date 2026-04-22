@@ -64,7 +64,11 @@ metadata:
   namespace: techcompany-sim
   labels:
     app: hackathon-agent
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internal
+    service.beta.kubernetes.io/aws-load-balancer-type: nlb
 spec:
+  type: LoadBalancer
   selector:
     app: hackathon-agent
   ports:
