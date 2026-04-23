@@ -8,7 +8,8 @@
 # ──────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-BASE_URL="${1:-http://localhost:8080}"
+#BASE_URL="${1:-http://localhost:8080}"
+BASE_URL="${1:-http://afe0ffe014a3b4f50a1d035d12522649-110346692.us-west-2.elb.amazonaws.com:8080}"
 NOW=$(date +%s)
 
 echo "🔧 Target: $BASE_URL"
