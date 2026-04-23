@@ -55,6 +55,10 @@ spec:
               value: "johnwicks@domain.com"
             - name: EMAIL_ENABLED
               value: "true"
+            - name: SMTP_USERNAME
+              value: "johnwicks"
+            - name: SMTP_PASSWORD
+              value: "johnwicks12345!"
           resources:
             requests:
               cpu: "100m"

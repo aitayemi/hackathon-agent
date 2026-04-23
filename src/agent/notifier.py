@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 
 from agent.config import (
     SMTP_HOST, SMTP_PORT, EMAIL_FROM, EMAIL_TO, EMAIL_ENABLED,
+    SMTP_USERNAME, SMTP_PASSWORD,
 )
 
 log = logging.getLogger(__name__)
@@ -33,6 +34,8 @@ def send_analysis_email(result: dict) -> bool:
         msg.attach(MIMEText(html_body, "html"))
 
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
+            if SMTP_USERNAME and SMTP_PASSWORD:
+                server.login(SMTP_USERNAME, SMTP_PASSWORD)
             server.sendmail(EMAIL_FROM, [EMAIL_TO], msg.as_string())
 
         log.info("Analysis email sent to %s", EMAIL_TO)
