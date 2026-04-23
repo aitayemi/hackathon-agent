@@ -30,6 +30,7 @@ spec:
       containers:
         - name: agent
           image: 440310653679.dkr.ecr.us-east-1.amazonaws.com/aitayemi-ecr:hackathon-agent-latest
+          imagePullPolicy: Always
           env:
             - name: UC1_BASE_URL
               value: "http://techcompany-sim-uc1.techcompany-sim:8001"
