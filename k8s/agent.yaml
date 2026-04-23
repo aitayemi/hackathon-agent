@@ -51,7 +51,7 @@ spec:
             - name: SMTP_PORT
               value: "25"
             - name: EMAIL_FROM
-              value: "anomaly-agent@hackathon.local"
+              value: "anomaly-agent@domain.com"
             - name: EMAIL_TO
               value: "johnwicks@domain.com"
             - name: EMAIL_ENABLED
