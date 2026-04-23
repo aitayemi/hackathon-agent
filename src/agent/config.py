@@ -32,3 +32,11 @@ ANALYSIS_INTERVAL = float(os.getenv("ANALYSIS_INTERVAL", "30.0"))
 # ── Dashboard ────────────────────────────────────────────────────────────────
 
 DASHBOARD_PORT = int(os.getenv("DASHBOARD_PORT", "8080"))
+
+# ── Email notifications ──────────────────────────────────────────────────────
+
+SMTP_HOST = os.getenv("SMTP_HOST", "192.168.0.46")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "25"))
+EMAIL_FROM = os.getenv("EMAIL_FROM", "anomaly-agent@hackathon.local")
+EMAIL_TO = os.getenv("EMAIL_TO", "johnwicks@domain.com")
+EMAIL_ENABLED = os.getenv("EMAIL_ENABLED", "true").lower() in ("true", "1", "yes")

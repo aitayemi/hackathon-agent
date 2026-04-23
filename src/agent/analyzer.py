@@ -13,6 +13,7 @@ import boto3
 
 from agent.collector import EventCollector
 from agent.config import BEDROCK_REGION, BEDROCK_MODEL_ID, ANALYSIS_INTERVAL
+from agent.notifier import send_analysis_email
 
 log = logging.getLogger(__name__)
 
@@ -277,6 +278,11 @@ class Analyzer:
                 self.result_history.append(result)
                 self.analysis_count += 1
                 self._log_result(result)
+
+                # Send email notification
+                await asyncio.get_event_loop().run_in_executor(
+                    None, send_analysis_email, result,
+                )
             else:
                 log.warning("Analysis cycle %d produced no result", self.analysis_count + 1)
 
