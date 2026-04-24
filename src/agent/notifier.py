@@ -86,6 +86,14 @@ def _build_plain_text(result: dict) -> str:
                 lines.append(f"    - {e}")
         lines.append("")
 
+    reasoning = result.get("reasoning")
+    if reasoning:
+        lines.append("=" * 60)
+        lines.append("EXTENDED THINKING — Model Reasoning")
+        lines.append("=" * 60)
+        lines.append(reasoning)
+        lines.append("")
+
     return "\n".join(lines)
 
 
@@ -144,5 +152,27 @@ def _build_html(result: dict) -> str:
                 Sent by Hackathon Anomaly Detection Agent
             </p>
         </div>
+        {_build_reasoning_html(result)}
     </body>
     </html>"""
+
+
+def _build_reasoning_html(result: dict) -> str:
+    """Build the extended thinking section for the HTML email."""
+    reasoning = result.get("reasoning")
+    if not reasoning:
+        return ""
+
+    # Escape HTML and convert newlines to <br>
+    import html
+    escaped = html.escape(reasoning).replace("\n", "<br>")
+
+    return f"""
+        <div style="margin-top:16px;border:1px solid #e0e0e0;border-radius:8px;overflow:hidden">
+            <div style="background:#2d3748;color:white;padding:12px 16px">
+                <h3 style="margin:0;font-size:14px">🧠 Extended Thinking — Model Reasoning</h3>
+            </div>
+            <div style="padding:16px;background:#f7fafc;font-size:12px;color:#4a5568;line-height:1.6;font-family:'SF Mono','Fira Code',Consolas,monospace;max-height:600px;overflow-y:auto">
+                {escaped}
+            </div>
+        </div>"""

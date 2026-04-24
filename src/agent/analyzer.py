@@ -174,11 +174,15 @@ class Analyzer:
         return "\n".join(parts)
 
     def _invoke_bedrock(self, prompt: str) -> dict | None:
-        """Call Bedrock with the prompt and return parsed JSON."""
+        """Call Bedrock with extended thinking enabled and return parsed JSON + reasoning."""
         try:
             body = json.dumps({
                 "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": 4096,
+                "max_tokens": 16000,
+                "thinking": {
+                    "type": "enabled",
+                    "budget_tokens": 10000,
+                },
                 "system": SYSTEM_PROMPT,
                 "messages": [
                     {"role": "user", "content": prompt},
@@ -193,29 +197,55 @@ class Analyzer:
             )
 
             result = json.loads(response["body"].read())
-            text = result["content"][0]["text"]
-            log.debug("Raw Bedrock response (first 500 chars): %s", text[:500])
+            content_blocks = result.get("content", [])
 
+            # Iterate through content blocks to find reasoning and text
+            reasoning_text = None
+            response_text = None
+
+            for block in content_blocks:
+                if block.get("type") == "thinking":
+                    reasoning_text = block.get("thinking", "")
+                    log.info("Extended thinking: %d chars", len(reasoning_text))
+                elif block.get("type") == "text":
+                    response_text = block.get("text", "")
+
+            if not response_text:
+                log.error("No text block found in Bedrock response")
+                raise ValueError("Bedrock response contained no text block")
+
+            log.debug("Raw Bedrock response (first 500 chars): %s", response_text[:500])
+
+            # Parse JSON from the text block
+            text = response_text
             if "```json" in text:
                 text = text.split("```json", 1)[1].rsplit("```", 1)[0]
             elif "```" in text:
                 text = text.split("```", 1)[1].rsplit("```", 1)[0]
 
             try:
-                return json.loads(text.strip())
+                parsed = json.loads(text.strip())
             except json.JSONDecodeError:
-                pass
+                parsed = None
 
-            start = text.find("{")
-            end = text.rfind("}")
-            if start != -1 and end != -1 and end > start:
-                try:
-                    return json.loads(text[start:end + 1])
-                except json.JSONDecodeError:
-                    pass
+            if not parsed:
+                start = text.find("{")
+                end = text.rfind("}")
+                if start != -1 and end != -1 and end > start:
+                    try:
+                        parsed = json.loads(text[start:end + 1])
+                    except json.JSONDecodeError:
+                        pass
 
-            log.error("Could not parse JSON from Bedrock response: %s", text[:1000])
-            raise ValueError(f"Bedrock returned unparseable response: {text[:300]}")
+            if not parsed:
+                log.error("Could not parse JSON from Bedrock response: %s", text[:1000])
+                raise ValueError(f"Bedrock returned unparseable response: {text[:300]}")
+
+            # Attach reasoning text to the result for email inclusion
+            if reasoning_text:
+                parsed["reasoning"] = reasoning_text
+
+            return parsed
 
         except Exception as e:
             log.error("Bedrock invocation failed: %s: %s", type(e).__name__, e)
