@@ -1,4 +1,4 @@
-# Hackathon Agent — Anomaly Detection
+# Supply Chain Disruption Detection Agent 
 
 Consumes events from UC1 (Supply Chain) and UC2 (App Store Compliance) simulators,
 buffers them in memory, and periodically sends them to Amazon Bedrock for anomaly analysis.
