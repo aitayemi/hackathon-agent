@@ -1,0 +1,97 @@
+Hackathon Agent — Chat Prompts
+================================
+Exported: April 23, 2026
+
+---
+
+1. You helped me build this hackatthon-agent I just opened. How do I interact with the agent or see what it is doing?
+
+2. Can you build a UI for this agent? I need to be able to see what it is doing? Especially if I have to demo it to my management team
+
+3. please push it to the same github repo
+
+4. the agent runs locally but I see this error when I deploy it to eks cluster:
+   [aitayemi@rockyaws hackathon-agent]$ kubectl logs -f deployment/hackathon-agent -n techcompany-sim
+   Traceback (most recent call last):
+   RuntimeError: Directory '/usr/local/lib/python3.11/site-packages/agent/static' does not exist
+
+5. which anthropic claude model can i invoke through on-demand in aws us-west-2?
+
+6. The default claude model you put in hackathon-agent is not usable in us-west-2 via on-demand
+
+7. can you correct this command? aws bedrock-runtime invoke-model --model-id a nthropic.claude-3-7-sonnet-20250219-v1:0 --body '{"anthropic_version": "bedrock-2023-05-31", "max_tokens": 1024, "messages": [{"role": "user", "content": "Explain quantum physics in one sentence."}]}' --cli-binary-format raw-in-base64-out --region us-west-2 response.json
+
+8. does the hackathon-agent actually have a /api/event endpoint ?
+
+9. when I run execute the trigger_anomaly.sh I am getting error: "detail": "Not Found"
+
+10. i am stilll getting this error from the agent: "detail": "Bedrock invocation failed — check agent logs"
+
+11. Running analysis cycle 1 (1600 buffered events)...
+    ERROR Bedrock invocation failed: An error occurred (ValidationException) when calling the InvokeModel operation: Invocation of model ID anthropic.claude-haiku-4-5-20251001-v1:0 with on-demand throughput isn't supported. Retry your request with the ID or ARN of an inference profile that contains this model.
+
+12. Bedrock invocation failed: An error occurred (AccessDeniedException) when calling the InvokeModel operation: User: arn:aws:sts::440310653679:assumed-role/eksctl-mlops-18040-addon-iamserviceaccount-te-Role1-hHFsQOkaY6cI/botocore-session-1776835295 is not authorized to perform: bedrock:InvokeModel on resource: arn:aws:bedrock:us-west-2:440310653679:inference-profile/us.anthropic.claude-3-5-haiku-20241022-v1:0 because no identity-based policy allows the bedrock:InvokeModel action
+
+13. Bedrock invocation failed: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: Access denied. This Model is marked by provider as Legacy and you have not been actively using the model in the last 30 days. Please upgrade to an active model on Amazon Bedrock
+
+14. Bedrock invocation failed: Expecting value: line 34 column 176 (char 3503)
+
+15. so the hackathon-agent is working well with the trigger script, but it doesn't seem to be detecting anomaly correctly from the two data simulator as it is not invoking bedrock model for analysis even when the data is obviously an anomaly. what can you do ?
+
+16. are there any hardcoded variables in hackathon-agent ?
+
+17. what version of botocore is referenced in hackathon-agent?
+
+18. aws: [ERROR]: An error occurred (AccessDeniedException) when calling the DescribeCluster operation: User: arn:aws:sts::440310653679:assumed-role/aitayemi-AmazonSSMManagedInstanceCore/i-0430a7aa9b1a9e359 is not authorized to perform: eks:DescribeCluster on resource: arn:aws:eks:us-east-1:440310653679:cluster/mlops-18040 because no identity-based policy allows the eks:DescribeCluster action
+
+19. please note that the serviceaccount name is bedrock-service-account
+
+20. API-triggered analysis cycle (1371 buffered events) Bedrock invocation failed: An error occurred (AccessDeniedException) when calling the InvokeModel operation: User: arn:aws:sts::440310653679:assumed-role/eksctl-mlops-18040-addon-iamserviceaccount-te-Role1-hHFsQOkaY6cI/botocore-session-1776835295 is not authorized to perform: bedrock:InvokeModel on resource: arn:aws:bedrock:us-west-2:440310653679:inference-profile/us.anthropic.claude-3-5-haiku-20241022-v1:0 because no identity-based policy allows the bedrock:InvokeModel action
+
+21. Bedrock invocation failed: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: Access denied. This Model is marked by provider as Legacy and you have not been actively using the model in the last 30 days. Please upgrade to an active model on Amazon Bedrock
+
+22. Bedrock invocation failed: Expecting value: line 34 column 176 (char 3503)
+
+23. can you create an API call with an anomaly payload I can issue against the hackathon-agent to trigger it to do an anomaly analysis using its backend LLM?
+
+24. that didn't have any effect. still not detecting any anomalies from the two data simulators
+
+25. Let me provide you examples of the data the agent gets from the two data simulators
+    [followed by extensive sample data from UC1 and UC2 simulators]
+
+26. the updated code only caught one anomaly event per data simulator. And didn't catch anything after that.
+
+27. the agent is still not analyzing any anomalies from the two data simulators. what is different between the payload you used in the trigger_anomaly.sh and the data from the simulators? Maybe if you compare them you can improve the analyzer logic so it starts to catch anomalous events from the two data simulators
+
+28. the data simulators come with the recommendation: "Recommended polling pattern for agents: store the timestamp of the last received event and pass it as ?since= on each cycle."
+
+29. which file contains the load balancer definition for the hackathon-agent?
+
+30. If you are going to change it, make sure the load balancer specification for the hackathon-agent is internal so that it gets its IP address from the VPC and so it is not a publicly routable IP address
+
+31. I have an email server running in the same AWS VPC on IP address 192.168.0.46. Can we add code to the agent that after analyzing the anonymous event with bedrock llm, it sends the analysis to a user named johnwicks@domain.com on the email server?
+
+32. the email server requires authentication. Please use username johnwicks and password johnwicks12345!
+
+33. can you include the nz, curl, and ping executables in the agent? I need those commands for some tests
+
+34. can you include the nc, curl, and ping executables in the agent? I need those commands for some tests
+
+35. what would be the full path in the container to the nc executable?
+
+36. i am getting "command terminated with exit code 1"
+
+37. this is still not including the executables in the container image
+
+38. push to the repo again as I made some local changes
+
+39. how do I fix this issue on the postfix email server?
+    Apr 23 20:27:14 mail postfix/submission/smtpd[3995]: NOQUEUE: reject: RCPT from ip-192-168-127-102.us-west-2.compute.internal[192.168.127.102]: 450 4.1.8 <anomaly-agent@hackathon.local>: Sender address rejected: Domain not found
+
+40. which model are you claude model are you currently using
+
+41. can you export all my prompts I have used for this hackathon-agent as a single text file?
+
+42. what do I need to do to be able to use anthropic.claude-3-5-haiku-20241022-v1:0 in us-west-2? what roles and policies do I need?
+
+43. push to the repo again as I made some local changes
