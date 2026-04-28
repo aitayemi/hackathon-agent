@@ -15,6 +15,12 @@ from agent.config import (
     UC1_SOURCES, UC2_SOURCES,
     POLL_INTERVAL, EVENT_WINDOW_SIZE,
 )
+from agent.metrics import (
+    events_collected_total,
+    events_deduplicated_total,
+    poll_errors_total,
+    event_buffer_size,
+)
 
 log = logging.getLogger(__name__)
 
@@ -28,6 +34,7 @@ class SourceState:
     last_ts: float = 0.0
     events: deque = field(default_factory=lambda: deque(maxlen=EVENT_WINDOW_SIZE))
     total_collected: int = 0
+    seen_ids: set = field(default_factory=set)  # For deduplication
 
 
 class EventCollector:
@@ -56,8 +63,18 @@ class EventCollector:
             if not new_events:
                 return []
 
+            deduplicated = 0
             for evt in new_events:
+                # Deduplication: generate event ID from timestamp + source + key fields
+                evt_id = self._generate_event_id(evt, src)
+
+                if evt_id in src.seen_ids:
+                    deduplicated += 1
+                    continue
+
+                src.seen_ids.add(evt_id)
                 src.events.append(evt)
+
                 # Try multiple timestamp fields the simulator might use
                 ts = (
                     evt.get("timestamp")
@@ -68,6 +85,12 @@ class EventCollector:
                 )
                 if ts > src.last_ts:
                     src.last_ts = ts
+
+            # Prune seen_ids to prevent unbounded growth (keep last 1000)
+            if len(src.seen_ids) > 1000:
+                # Convert to list, keep newest 500
+                ids_list = list(src.seen_ids)
+                src.seen_ids = set(ids_list[-500:])
 
             # If no event-level timestamp found, use the response-level one
             # or fall back to current time to advance the cursor
@@ -83,17 +106,53 @@ class EventCollector:
                     import time
                     src.last_ts = time.time()
 
-            src.total_collected += len(new_events)
+            unique_events = len(new_events) - deduplicated
+            src.total_collected += unique_events
+
+            # Update metrics
+            if unique_events > 0:
+                events_collected_total.labels(
+                    use_case=src.use_case, source=src.name
+                ).inc(unique_events)
+            if deduplicated > 0:
+                events_deduplicated_total.labels(
+                    use_case=src.use_case, source=src.name
+                ).inc(deduplicated)
+            event_buffer_size.labels(
+                use_case=src.use_case, source=src.name
+            ).set(len(src.events))
+
             if new_events:
                 log.debug(
-                    "%s/%s: %d new events (last_ts=%.3f)",
-                    src.use_case, src.name, len(new_events), src.last_ts,
+                    "%s/%s: %d new events (%d deduplicated, last_ts=%.3f)",
+                    src.use_case, src.name, unique_events, deduplicated, src.last_ts,
                 )
             return new_events
 
         except httpx.HTTPError as e:
             log.warning("Poll failed for %s/%s: %s", src.use_case, src.name, e)
+            poll_errors_total.labels(
+                use_case=src.use_case, source=src.name
+            ).inc()
             return []
+
+    def _generate_event_id(self, evt: dict, src: SourceState) -> str:
+        """Generate a unique ID for an event to detect duplicates."""
+        # Use event's id field if available
+        if "id" in evt:
+            return f"{src.use_case}/{src.name}/{evt['id']}"
+
+        # Otherwise, use timestamp + data fingerprint
+        data = evt.get("data", evt)
+        ts = evt.get("timestamp", evt.get("ts", 0))
+
+        # Create fingerprint from key fields
+        fingerprint_parts = [str(ts)]
+        for key in sorted(data.keys())[:5]:  # First 5 keys alphabetically
+            fingerprint_parts.append(f"{key}:{data[key]}")
+
+        fingerprint = "|".join(fingerprint_parts)
+        return f"{src.use_case}/{src.name}/{fingerprint}"
 
     async def poll_all(self) -> dict[str, list[dict]]:
         """Poll all sources concurrently. Returns {source_key: [new_events]}."""

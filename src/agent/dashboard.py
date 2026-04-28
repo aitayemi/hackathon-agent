@@ -13,9 +13,10 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from agent.collector import EventCollector
 from agent.analyzer import Analyzer
@@ -52,6 +53,32 @@ def create_app(collector: EventCollector, analyzer: Analyzer) -> FastAPI:
     @app.get("/")
     async def index():
         return FileResponse(str(STATIC_DIR / "index.html"))
+
+    # ── Health checks ────────────────────────────────────────────────────
+    @app.get("/health", summary="Health check endpoint for K8s liveness probe")
+    async def health():
+        return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
+
+    @app.get("/ready", summary="Readiness check - confirms agent is collecting events")
+    async def ready():
+        total_events = sum(len(s.events) for s in collector.sources)
+        if total_events == 0 and collector._running:
+            # Agent is running but no events yet - might still be starting
+            raise HTTPException(status_code=503, detail="No events collected yet")
+        return {
+            "status": "ready",
+            "total_events": total_events,
+            "sources_active": len(collector.sources),
+            "analyses_completed": analyzer.analysis_count,
+        }
+
+    # ── Prometheus metrics ───────────────────────────────────────────────
+    @app.get("/metrics", summary="Prometheus metrics endpoint")
+    async def metrics():
+        return PlainTextResponse(
+            content=generate_latest().decode("utf-8"),
+            media_type=CONTENT_TYPE_LATEST,
+        )
 
     # ── REST snapshot ────────────────────────────────────────────────────
     @app.get("/api/status")

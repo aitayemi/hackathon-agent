@@ -43,7 +43,15 @@ spec:
             - name: BEDROCK_REGION
               value: "us-west-2"
             - name: BEDROCK_MODEL_ID
-              value: "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+              value: "arn:aws:bedrock:us-west-2:440310653679:inference-profile/us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+            - name: BEDROCK_FALLBACK_MODEL_ID
+              value: "arn:aws:bedrock:us-west-2:440310653679:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0"
+            - name: EMAIL_THROTTLE_INTERVAL
+              value: "300"
+            - name: TEMPORAL_WINDOW_HOURS
+              value: "6.0"
+            - name: LOG_FORMAT
+              value: "json"
             - name: PYTHONUNBUFFERED
               value: "1"
             - name: SMTP_HOST
@@ -63,13 +71,29 @@ spec:
           resources:
             requests:
               cpu: "100m"
-              memory: "128Mi"
+              memory: "256Mi"
             limits:
               cpu: "500m"
-              memory: "256Mi"
+              memory: "512Mi"
           ports:
             - containerPort: 8080
               name: dashboard
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: dashboard
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: dashboard
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 2
 
 ---
 apiVersion: v1

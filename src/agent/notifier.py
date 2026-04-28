@@ -5,21 +5,56 @@ from __future__ import annotations
 
 import logging
 import smtplib
+import time
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import datetime, timezone
 
-from agent.config import (
-    SMTP_HOST, SMTP_PORT, EMAIL_FROM, EMAIL_TO, EMAIL_ENABLED,
-    SMTP_USERNAME, SMTP_PASSWORD,
-)
+from agent.config import config
+from agent.metrics import emails_sent_total, emails_throttled_total, emails_failed_total
 
 log = logging.getLogger(__name__)
 
 
+class EmailThrottler:
+    """Rate limiter to prevent email spam during persistent anomalies."""
+
+    def __init__(self, min_interval: float = 300.0):
+        self._last_sent: dict[str, float] = {}
+        self._min_interval = min_interval
+
+    def should_send(self, status_key: str) -> bool:
+        """Check if enough time has passed since last email for this status."""
+        now = time.time()
+        last = self._last_sent.get(status_key, 0)
+        if now - last < self._min_interval:
+            log.debug(
+                "Email throttled for status '%s' (%.0fs since last, min %.0fs)",
+                status_key, now - last, self._min_interval
+            )
+            return False
+        self._last_sent[status_key] = now
+        return True
+
+
+# Global throttler instance
+_throttler = EmailThrottler(min_interval=config.email_throttle_interval)
+
+
 def send_analysis_email(result: dict) -> bool:
     """Send an analysis result as a formatted HTML email. Returns True on success."""
-    if not EMAIL_ENABLED:
+    if not config.email_enabled:
+        return False
+
+    # Create status key for throttling (e.g., "UC1:ANOMALY_UC2:NORMAL")
+    uc1_status = result.get("uc1", {}).get("status", "UNKNOWN")
+    uc2_status = result.get("uc2", {}).get("status", "UNKNOWN")
+    status_key = f"UC1:{uc1_status}_UC2:{uc2_status}"
+
+    # Check throttle - only send if status changed or enough time passed
+    if not _throttler.should_send(status_key):
+        log.info("Email throttled (status unchanged: %s)", status_key)
+        emails_throttled_total.inc()
         return False
 
     try:
@@ -28,21 +63,23 @@ def send_analysis_email(result: dict) -> bool:
 
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
-        msg["From"] = EMAIL_FROM
-        msg["To"] = EMAIL_TO
+        msg["From"] = config.email_from
+        msg["To"] = config.email_to
         msg.attach(MIMEText(_build_plain_text(result), "plain"))
         msg.attach(MIMEText(html_body, "html"))
 
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
-            if SMTP_USERNAME and SMTP_PASSWORD:
-                server.login(SMTP_USERNAME, SMTP_PASSWORD)
-            server.sendmail(EMAIL_FROM, [EMAIL_TO], msg.as_string())
+        with smtplib.SMTP(config.smtp_host, config.smtp_port, timeout=10) as server:
+            if config.smtp_username and config.smtp_password:
+                server.login(config.smtp_username, config.smtp_password)
+            server.sendmail(config.email_from, [config.email_to], msg.as_string())
 
-        log.info("Analysis email sent to %s", EMAIL_TO)
+        log.info("Analysis email sent to %s", config.email_to)
+        emails_sent_total.inc()
         return True
 
     except Exception as e:
         log.warning("Failed to send analysis email: %s: %s", type(e).__name__, e)
+        emails_failed_total.inc()
         return False
 
 
