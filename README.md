@@ -683,31 +683,3 @@ rate(emails_throttled_total[1h]) / (rate(emails_sent_total[1h]) + rate(emails_th
 # Failed email alerts
 rate(emails_failed_total[5m]) > 0
 ```
-
-## Version History
-
-### v0.1.0 (2026-04-28) - Production Ready Release
-
-**New Features:**
-- ✅ Email rate limiting with configurable throttle interval (default: 5 minutes)
-- ✅ Automatic retry logic with exponential backoff (3 attempts: 4s → 16s → 60s)
-- ✅ Model fallback: Auto-switch from Claude 3.5 Sonnet to Haiku on failure
-- ✅ Event deduplication to prevent duplicate processing
-- ✅ Kubernetes health checks (`/health` and `/ready` endpoints)
-- ✅ Prometheus metrics (13 comprehensive metrics)
-- ✅ Structured logging with JSON support for Kubernetes
-- ✅ Pydantic-based configuration validation with ranges
-- ✅ Increased memory limits (512Mi) to prevent OOM kills
-
-**Testing:**
-- ✅ 34 unit tests with ~80% coverage of critical paths
-- ✅ Test suite for analyzer, collector, config, and notifier
-
-### v0.0.1 (Initial Release)
-
-**Core Features:**
-- Event collection from UC1 and UC2 simulators
-- Rolling buffer (200 events per source)
-- Bedrock Claude integration for anomaly analysis
-- Real-time WebSocket dashboard
-- Basic email notifications
